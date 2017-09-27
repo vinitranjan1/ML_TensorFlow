@@ -26,18 +26,26 @@ W = tf.Variable([.3], dtype=tf.float32)
 b = tf.Variable([-.3], dtype=tf.float32)
 x = tf.placeholder(tf.float32)
 linear_model = W * x + b
+#Make a model to use 
+#Variables not initialized at first like tf.constant
 
+init = tf.global_variables_initializer()
+sess.run(init)
+#Need these lines to explicitly initialize variables
 
+print(sess.run(linear_model, {x: [1,2,3,4]}))
+#x is just a placeholder, can feed a list into it (R-esque)
 
+y = tf.placeholder(tf.float32)
+squared_deltas = tf.square(linear_model - y)
+loss = tf.reduce_sum(squared_deltas)
+#reduce sum abstracts error
+print(sess.run(loss, {x: [1,2,3,4], y: [0,-1,-2,-3]}))
+#sum of squares of delta is common loss function
 
-
-
-
-
-
-
-
-
-
-
-
+fixW = tf.assign(W, [-1.])
+fixb = tf.assign(b, [1.])
+#tf.assign changes tf.Variable
+sess.run([fixW,fixb])
+print(sess.run(loss, {x: [1,2,3,4], y: [0,-1,-2,-3]}))
+#values are "perfect" because we made them so, need ML to find these
