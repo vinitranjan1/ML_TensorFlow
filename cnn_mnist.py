@@ -44,15 +44,73 @@ def cnn_model_fn(features, labels, mode):
         inputs = dense, rate = 0.4, training=mode==tf.estimator.ModeKeys.TRAIN)
 
     #logits layer
-    logits = tf.layers.dense(inputs=dropout, units=20)
+    logits = tf.layers.dense(inputs=dropout, units=10)
 
     predictions = {
         "classes": tf.argmax(input=logits, axis = 1),
         "probabilities": tf.nn.softmax(logits, name="softmax_tensor")
     }
-    if mode == tf.estimator.ModeLeys.PREDICT:
+    if mode == tf.estimator.ModeKeys.PREDICT:
         return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
+    
+    #calculate loss
+    onehot_labels = tf.one_hot(indices=tf.cast(labels, tf.int32), depth=10)
+    loss = tf.losses.softmax_cross_entropy(
+        onehot_labels=onehot_labels, logits=logits)
 
+    #configure training op
+    if mode == tf.estimator.ModeKeys.TRAIN:
+        optimizer = tf.train.GradientDescentOptimizer(learning_rate=0.001)
+        train_op = optimizer.minimize(
+            loss=loss,
+            global_step = tf.train.get_global_step())
+        return tf.estimator.EstimatorSpec(mode=mode, loss=loss, train_op=train_op)
+
+    #evaluation metrics
+    eval_metric_ops = {
+        "accuracy": tf.metrics.accuracy(
+            labels=labels, predictions = predictions["classes"])}
+    return tf.estimator.EstimatorSpec(
+        mode=mode, loss=loss, eval_metric_ops=eval_metric_ops)
+
+def main(unused_argv):
+    #load training/eval data
+    mnist = tf.contrib.learn.datasets.load_dataset("mnist")
+    train_data = mnist.train.images
+    train_labels = np.asarray(mnist.train.labels, dtype=np.int32)
+    eval_data = mnist.test.images
+    eval_labels = np.asarray(mnist.test.labels, dtype=np.int32)
+
+    #create estimator
+    mnist_classifier = tf.estimator.Estimator(
+        model_fn = cnn_model_fn, model_dir="/tmp/mnist_convnet_model")
+
+    #set up logging for predictions
+    #log values in softmax with probabilities label
+    tensors_to_log = {"probabilities": "softmax_tensor"}
+    logging_hook = tf.train.LoggingTensorHook(
+        tensors=tensors_to_log, every_n_iter=50)
+
+    #train
+    train_input_fn = tf.estimator.inputs.numpy_input_fn(
+        x = {"x": train_data},
+        y = train_labels,
+        batch_size = 100,
+        num_epochs=None,
+        shuffle=True)
+#    mnist_classifier.train(
+#        input_fn = train_input_fn,
+#        steps=20000,
+#        hooks=[logging_hook])
+    
+    #evalute and print results
+    eval_input_fn = tf.estimator.inputs.numpy_input_fn(
+        x = {"x": eval_data},
+        y = eval_labels,
+        num_epochs = 1,
+        shuffle = False)
+    eval_results = mnist_classifier.evaluate(input_fn = eval_input_fn)
+    print(eval_results)
 
 
 
